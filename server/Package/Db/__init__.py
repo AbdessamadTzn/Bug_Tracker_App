@@ -27,3 +27,19 @@ def setup_user_team_role():
         )  # You can define roles as needed
     )
     return
+
+def setup_team_project():
+    #team_project
+    team_project = my_database.Table(
+        "team_project",
+        my_database.Column('team_id', 
+            UUID(as_uuid=True), 
+            my_database.ForeignKey('team.id'), 
+            primary_key=True),
+        my_database.Column('project_id', 
+            UUID(as_uuid=True), 
+            my_database.ForeignKey('project.id'), 
+            primary_key=True
+        )
+    )
+    return

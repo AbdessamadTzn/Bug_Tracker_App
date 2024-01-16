@@ -2,7 +2,7 @@ from flask import Flask,request,jsonify
 from Package import *
 from flask_cors import CORS, cross_origin
 from dotenv import load_dotenv
-from Package.Db import my_database,setup_user_team_role
+from Package.Db import my_database,setup_user_team_role, setup_team_project
 #impotrt all needed models : 
 from Package.Models.User import User
 from Package.Models.Team import Team
@@ -12,6 +12,7 @@ import os
 #import all the bluePrints :
 from Package.BluePrints.User import UserController 
 from Package.BluePrints.Team import TeamController
+from Package.BluePrints.Project import ProjectController
 
 #load env variables: 
 load_dotenv()
@@ -31,6 +32,7 @@ my_database.init_app(my_app)
 
 my_app.register_blueprint(UserController)
 my_app.register_blueprint(TeamController)
+my_app.register_blueprint(ProjectController)
 
 
 @my_app.route(API_PREFIXER,methods=["GET"])
@@ -45,6 +47,7 @@ if __name__=="__main__":
 	print(f"--> Bug tracker runing on : http://localhost:5000{API_PREFIXER} \n")
 	with my_app.app_context():
 		setup_user_team_role()
+		setup_team_project()
 		my_database.create_all()
 		alreadyUser = User.query.filter_by(userName='BugAdminClient').first()
 		if not alreadyUser:

@@ -20,7 +20,7 @@ Prefixer = API_PREFIXER+Team_PREFIXER
 @team_api.route(Prefixer+"/Ping", methods=["GET"])
 @cross_origin()
 def ping_handler():
-    return jsonify({"Response": "Team Pong"})
+    return jsonify({"Response": "Team Pong"}),200
 
 
 # router endpoint to get the list of all teams in the database : 
@@ -60,6 +60,35 @@ def get_team_admin(team_id):
     adminTarget = TeamService.getTeamAdmin(team_id)
     print( adminTarget )
     return jsonify({"data": adminTarget }),200
+
+
+#create new team :
+@team_api.route(Prefixer+"/New/<admin_id>", methods=["POST"])
+@cross_origin()
+def create_new_team(admin_id):
+    #check is admin exist :
+    adminTarget = UserService.alreadyExists(admin_id)
+    if not adminTarget:
+        return jsonify({"message": "User not found"}),400
+    #extract the paload from the request : 
+    newTeamPayload = request.json
+    #check if the payload has a name prop :
+    if not "name" in newTeamPayload:
+        return jsonify({"message": "Name is required"}),404
+    #check if the provided name is not already used :
+    teamName = newTeamPayload["name"]
+    teamNameExist = TeamService.checkTeamByName( teamName )
+    if teamNameExist:
+        return jsonify({"message": "Team Name is already in use "}),404
+    #call static method to create new team:
+    createdTeamResponse = TeamService.createNewTeam(teamName,admin_id)
+    if not createdTeamResponse["created"]:
+        return jsonify({"message": "Faild create Team "}),500
+    return jsonify({
+        "message": "Team Created successfully",
+        "team":createdTeamResponse["target"]
+        }
+    ),201
 
 #update the admin by id :
 @team_api.route(Prefixer+"<team_id>/Administrator/New/<user_id>",methods=["PUT"])
@@ -116,3 +145,101 @@ def get_team_members(team_id):
     #call the service :
     contributorList = TeamService.getTeamMembers(team_id)
     return jsonify({"data":contributorList}), 200
+
+
+#add new team member ( contributer )
+@team_api.route(Prefixer+"/<team_id>/members/add/<member_id>", methods=["POST"])
+@cross_origin()
+def add_team_member(team_id, member_id):
+    # check if team exist :
+    alreadyExist = TeamService.alreadyExist(team_id)
+    if not alreadyExist:
+        return jsonify({"message": "Team not found"}),400
+    # check if user exist :
+    userAlreadyExist = UserService.alreadyExists(member_id)
+    if not userAlreadyExist:
+        return jsonify({"message": "User not found"}),400
+    #extract the role from request body:
+    payload = request.json
+    default_role_contrib = "Contributor"
+    #check if role is already present:
+    if "role" in payload:
+        default_role_contrib = payload["role"]
+    #  call static serivce to add team member:    
+    addContribResponse = TeamService.add_contributor(team_id,member_id, default_role_contrib)
+    # check resposne :
+    if addContribResponse:
+        return jsonify({"message":"New team member added successfully"}), 202
+    return jsonify({"message":"Failure to add team member"}), 502
+
+
+#update member role : 
+@team_api.route(Prefixer+"/<team_id>/member/<member_id>/NewRole", methods=["PUT"])
+@cross_origin()
+def update_team_member_role(member_id, team_id ):
+    payload = request.json
+    if not "role" in payload:
+        return jsonify({"message": "Role is required"}), 400
+    #check the team id :
+    alreadyExist = TeamService.alreadyExist(team_id)
+    if not alreadyExist:
+        return jsonify({"message": "Team not found"}),400
+    #check user if exist :
+    userAlreadyExist = UserService.alreadyExists(member_id)
+    if not userAlreadyExist:
+        return jsonify({"message": "User not found"}),400
+    #check if the user is a team member :
+    isTeamMember = TeamService.is_team_member(team_id, member_id)
+    if not isTeamMember:
+        return  jsonify({"message": "User not member"}),403
+    #extract new role from request body :
+    newRole = payload["role"]
+    #call update service :
+    isRoleUpdated = TeamService.update_member_role(team_id,member_id, newRole )
+    if isRoleUpdated:
+        return jsonify({"message": "Role updated successfully"}),202
+    return jsonify({"message": "Failure to update role"}), 404
+
+
+#block  ( remove ) team members acces :
+@team_api.route(Prefixer+"/<team_id>/members/remove/<member_id>", methods=["GET"])
+@cross_origin()
+def remove_team_member(team_id, member_id):
+    # check if team exist :
+    alreadyExist = TeamService.alreadyExist(team_id)
+    if not alreadyExist:
+        return jsonify({"message": "Team not found"}),400
+    # check if user exist :
+    userAlreadyExist = UserService.alreadyExists(member_id)
+    if not userAlreadyExist:
+        return jsonify({"message": "User not found"}),400
+    #call remover static method:
+    removeContribResponse = TeamService.remove_contributor(team_id,member_id) 
+    if removeContribResponse:
+        return jsonify({"message":"Member remove successfully "}), 200
+    return jsonify({"message":"Failure to remove team member"}), 502
+
+
+
+#get all team roles by team_id :
+@team_api.route(Prefixer+"/<team_id>/roles", methods=["GET"])
+@cross_origin()
+def get_team_role( team_id ):
+    # check if team exist :
+    alreadyExist = TeamService.alreadyExist(team_id)
+    if not alreadyExist:
+        return jsonify({"message": "Team not found"}),400
+    #call the get list of role that the team have :
+    allRoleList = TeamService.get_team_roles( team_id )
+    #check len of allRoleList :
+    if len(allRoleList) > 1:
+        filtredRole = {}
+        for role in allRoleList:
+            if role in filtredRole:
+                filtredRole[role] += 1
+            else:
+                filtredRole[role] = 1
+        return jsonify({"data": filtredRole}),200
+    #return the list of role or empty list : 
+    return jsonify({"data":allRoleList}),200
+

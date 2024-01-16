@@ -1,6 +1,7 @@
 from Package.Models.Team import Team
 from Package.Models.User import User
 from Package.Db import my_database
+from sqlalchemy import text
 
 def create_team(team_data):
     # get connexion with atlas mongodb:
@@ -103,7 +104,7 @@ class TeamService:
         teamTarget = Team.query.filter_by(id=teamId).first()
         if not teamTarget:
             return
-        admin = teamTarget.toDict().admin
+        admin = teamTarget.toDict()["admin"]
         #get the admin data by id :
         adminTarget =  User.query.filter_by(id=admin).first()
         return adminTarget.toDict()
@@ -143,4 +144,92 @@ class TeamService:
             print( e )
             my_database.session.rollback()
             return False 
+    @staticmethod
+    def createNewTeam(teamName, teamAdminId):
+        try:
+            teamToInsert = Team(teamName, teamAdminId)
+            #save new team item :
+            my_database.session.add(teamToInsert)
+            my_database.session.commit()
+            return { "created": True, "target": teamToInsert.toDict()}
+        except Exception as e:
+            print( e )
+            return { "created": False, "target": {}}
+    #add user to team :
+    @staticmethod
+    def add_contributor(team_id, user_id, role_name):
+        try:
+            # try to add the user to the team
+            new_team_user_relation = {
+                "user_id": user_id,
+                "team_id": team_id,
+                "role": role_name
+            }
+            # use SQLAlchemy's text function to define the SQL statement
+            sql_statement = text(
+                "INSERT INTO user_team_role (user_id, team_id, role) VALUES (:user_id, :team_id, :role)"
+            )
+            # execute the statement with parameters using the session
+            my_database.session.execute(sql_statement, new_team_user_relation)
+            my_database.session.commit()
 
+            return True
+        except Exception as e:
+            print(e)
+            return False
+    #check if a user is a member of the team .
+    @staticmethod
+    def is_team_member(team_id, user_id):
+        # Use SQLAlchemy's text function to define the SQL SELECT statement
+        select_statement = text(
+            "SELECT * FROM user_team_role WHERE team_id = :team_id AND user_id = :user_id"
+        )
+        # Execute the SELECT statement with parameters using the session
+        user_relationship = my_database.session.execute(select_statement, {"team_id": team_id, "user_id": user_id}).fetchone()
+        if user_relationship:
+            return True
+        return False
+    
+    #update member role in a team :
+    @staticmethod
+    def update_member_role( team_id, member_id, new_role ):
+        try:
+            # Use SQLAlchemy's text function to define the SQL UPDATE statement
+            update_statement = text(
+                "UPDATE user_team_role SET role = :new_role WHERE team_id = :team_id AND user_id = :user_id"
+            )
+            # Execute the UPDATE statement with parameters using the session
+            my_database.session.execute(update_statement, {"team_id": team_id, "user_id": member_id, "new_role": new_role})
+            my_database.session.commit()
+            return True
+        except Exception as e:
+            print( e )
+            return False
+        return
+    
+    
+    #delete ( block ) user for team access :
+    def remove_contributor(team_id, user_id):
+        try:
+            sql_statement = text(
+                "DELETE FROM user_team_role WHERE team_id = :team_id AND user_id = :user_id"
+            )
+            my_database.session.execute(sql_statement, {"team_id": team_id, "user_id": user_id}).fetchall()
+            my_database.session.commit()
+            return True
+        except Exception as e:
+            print( e )
+            return False
+    #get all the role belongs to the team :
+    def get_team_roles(team_id):
+        try:
+            roles = []
+            sql_statement = text(
+                "SELECT role FROM user_team_role WHERE team_id = :team_id"
+            )
+            roleList  = my_database.session.execute(sql_statement,{"team_id": team_id} )
+            roles = [row[0] for row in roleList]
+            return roles
+        except Exception as e:
+            print( e )
+            return []
